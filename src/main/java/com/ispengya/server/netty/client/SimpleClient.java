@@ -1,7 +1,10 @@
 package com.ispengya.server.netty.client;
 
 import com.ispengya.server.*;
+import com.ispengya.server.common.exception.SimpServerInvokeException;
+import com.ispengya.server.common.exception.SimpleServerConnectException;
 import com.ispengya.server.common.exception.SimpleServerException;
+import com.ispengya.server.common.exception.SimpleServerTimeOutException;
 import com.ispengya.server.common.util.ChannelWrapper;
 import com.ispengya.server.common.util.Pair;
 import com.ispengya.server.common.util.SimpleServerUtil;
@@ -95,15 +98,7 @@ public class SimpleClient extends SimpleAbstract implements SimpleClientService 
             }
         });
 
-        this.defaultEventExecutorGroup = new DefaultEventExecutorGroup(clientConfig.getClientWorkerThreads(), new ThreadFactory() {
 
-            private AtomicInteger threadIndex = new AtomicInteger(0);
-
-            @Override
-            public Thread newThread(Runnable r) {
-                return new Thread(r, "NettyClientWorkerThread_" + this.threadIndex.incrementAndGet());
-            }
-        });
     }
 
     @Override
@@ -138,17 +133,17 @@ public class SimpleClient extends SimpleAbstract implements SimpleClientService 
             this.eventExecutor.start();
         }
 
-//        this.timer.scheduleAtFixedRate(new TimerTask() {
-//
-//            @Override
-//            public void run() {
-//                try {
-//                    scanResponseTable();
-//                } catch (Throwable e) {
-//                    log.error("scanResponseTable exception", e);
-//                }
-//            }
-//        }, 1000 * 3, 1000);
+        this.timer.scheduleAtFixedRate(new TimerTask() {
+
+            @Override
+            public void run() {
+                try {
+                    scanResponseTable();
+                } catch (Throwable e) {
+                    log.error("scanResponseTable exception", e);
+                }
+            }
+        }, 1000 * 3, 1000);
     }
 
     @Override
@@ -219,18 +214,25 @@ public class SimpleClient extends SimpleAbstract implements SimpleClientService 
             try {
                 long costTime = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTime) {
-                    throw new SimpleServerException("invokeSync call timeout");
+                    throw new SimpleServerTimeOutException("invokeSync call timeout", timeoutMillis);
                 }
                 SimpleServerTransContext response = this.invokeSyncImpl(channel, request, timeoutMillis - costTime);
                 return response;
-            } catch (SimpleServerException e) {
-                log.warn("invokeSync: send request exception, so close the channel[{}]", addr);
+            } catch (SimpServerInvokeException e) {
+                log.warn("invokeSync: invoke exception, so close the channel[{}]", addr);
                 this.closeChannel(addr, channel);
+                throw e;
+            } catch (SimpleServerTimeOutException e){
+                if (clientConfig.isClientCloseSocketIfTimeout()) {
+                    this.closeChannel(addr, channel);
+                    log.warn("invokeSync: close socket because of timeout, {}ms, {}", timeoutMillis, addr);
+                }
+                log.warn("invokeSync: wait response timeout exception, the channel[{}]", addr);
                 throw e;
             }
         } else {
             this.closeChannel(addr, channel);
-            throw new SimpleServerException(addr);
+            throw new SimpleServerConnectException(addr);
         }
     }
 
@@ -242,17 +244,24 @@ public class SimpleClient extends SimpleAbstract implements SimpleClientService 
             try {
                 long costTime = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTime) {
-                    throw new SimpleServerException("invokeAsync call timeout");
+                    throw new SimpleServerTimeOutException("invokeAsync call timeout");
                 }
                 this.invokeAsyncImpl(channel, request, timeoutMillis - costTime, invokeCallback);
-            } catch (SimpleServerException e) {
+            } catch (SimpServerInvokeException e) {
                 log.warn("invokeAsync: send request exception, so close the channel[{}]", addr);
                 this.closeChannel(addr, channel);
+                throw e;
+            }catch (SimpleServerTimeOutException e){
+                if (clientConfig.isClientCloseSocketIfTimeout()) {
+                    this.closeChannel(addr, channel);
+                    log.warn("invokeSync: close socket because of timeout, {}ms, {}", timeoutMillis, addr);
+                }
+                log.warn("invokeSync: wait response timeout exception, the channel[{}]", addr);
                 throw e;
             }
         } else {
             this.closeChannel(addr, channel);
-            throw new SimpleServerException(addr);
+            throw new SimpleServerConnectException(addr);
         }
     }
 

@@ -144,7 +144,7 @@ public class SimpleServer extends SimpleAbstract implements SimpleServerService 
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
             this.port = addr.getPort();
         } catch (InterruptedException e) {
-            throw new SimpleServerException("this.serverBootstrap.bind().sync() InterruptedException", e);
+            throw new SimpleServerException("SimpleServer start fail", e);
         }
         // start event thread
         if (this.channelEventListener != null) {

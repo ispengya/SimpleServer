@@ -79,8 +79,7 @@ public class SimpleClientConnectManageHandler extends ChannelDuplexHandler {
                 log.warn("simple client pipeline: IDLE exception [{}]", remoteAddress);
                 client.closeChannel(ctx.channel());
                 if (client.getChannelEventListener() != null) {
-                    client
-                            .putEvent(new Event(SimpleServerAllConstants.IDLE, remoteAddress, ctx.channel()));
+                    client.putEvent(new Event(SimpleServerAllConstants.IDLE, remoteAddress, ctx.channel()));
                 }
             }
         }

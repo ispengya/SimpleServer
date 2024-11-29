@@ -4,7 +4,10 @@ import com.ispengya.server.InvokeCallback;
 import com.ispengya.server.SimpleServerProcessor;
 import com.ispengya.server.SimpleService;
 import com.ispengya.server.common.constant.SimpleServerAllConstants;
+import com.ispengya.server.common.exception.SimpServerInvokeException;
+import com.ispengya.server.common.exception.SimpleServerConnectException;
 import com.ispengya.server.common.exception.SimpleServerException;
+import com.ispengya.server.common.exception.SimpleServerTimeOutException;
 import com.ispengya.server.common.util.Pair;
 import com.ispengya.server.common.util.SimpleServerUtil;
 import com.ispengya.server.procotol.SimpleServerTransContext;
@@ -240,8 +243,11 @@ public abstract class SimpleAbstract implements SimpleService {
 
             SimpleServerTransContext sst = responseFuture.waitResponse(timeoutMillis);
             if (null == sst) {
-                if (!responseFuture.isSendRequestOK()) {
-                    throw new SimpleServerException(SimpleServerUtil.parseSocketAddressAddr(addr));
+                if (responseFuture.isSendRequestOK()) {
+                    throw new SimpleServerTimeOutException(SimpleServerUtil.parseSocketAddressAddr(addr), timeoutMillis,
+                            responseFuture.getCause());
+                } else {
+                    throw new SimpServerInvokeException(SimpleServerUtil.parseSocketAddressAddr(addr), responseFuture.getCause());
                 }
             }
 
@@ -263,7 +269,7 @@ public abstract class SimpleAbstract implements SimpleService {
             final ResponseFuture responseFuture = new ResponseFuture(channel, requestId, timeoutMillis - costTime, invokeCallback, semaphore);
             if (timeoutMillis < costTime) {
                 responseFuture.release();
-                throw new SimpleServerException("invokeAsyncImpl call timeout");
+                throw new SimpleServerTimeOutException("invokeAsyncImpl call timeout");
             }
 
             this.responseTable.put(requestId, responseFuture);
@@ -282,7 +288,7 @@ public abstract class SimpleAbstract implements SimpleService {
             } catch (Exception e) {
                 responseFuture.release();
                 log.warn("send a request command to channel <" + SimpleServerUtil.parseChannelRemoteAddr(channel) + "> Exception", e);
-                throw new SimpleServerException(SimpleServerUtil.parseChannelRemoteAddr(channel), e);
+                throw new SimpServerInvokeException(SimpleServerUtil.parseChannelRemoteAddr(channel), e);
             }
         } else {
             if (timeoutMillis <= 0) {
@@ -295,7 +301,7 @@ public abstract class SimpleAbstract implements SimpleService {
                                 this.semaphoreAsync.availablePermits()
                         );
                 log.warn(info);
-                throw new SimpleServerException(info);
+                throw new SimpleServerTimeOutException(info);
             }
         }
     }
@@ -319,7 +325,7 @@ public abstract class SimpleAbstract implements SimpleService {
             } catch (Exception e) {
                 semaphore.release();
                 log.warn("write send a request command to channel <" + channel.remoteAddress() + "> failed.");
-                throw new SimpleServerException(SimpleServerUtil.parseChannelRemoteAddr(channel), e);
+                throw new SimpServerInvokeException(SimpleServerUtil.parseChannelRemoteAddr(channel), e);
             }
         } else {
             if (timeoutMillis <= 0) {
@@ -332,7 +338,7 @@ public abstract class SimpleAbstract implements SimpleService {
                         this.semaphoreOneway.availablePermits()
                 );
                 log.warn(info);
-                throw new SimpleServerException(info);
+                throw new SimpleServerTimeOutException(info);
             }
         }
     }

@@ -5,6 +5,7 @@ import com.ispengya.server.common.constant.SimpleServerAllConstants;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @description: SimpleServer传输内容
@@ -12,6 +13,7 @@ import java.util.HashMap;
  * @create: 2024-11-28 20:16
  **/
 public class SimpleServerTransContext {
+    private static final AtomicInteger requestIdWorker = new AtomicInteger(0);
     /**
      * 状态
      */
@@ -23,7 +25,7 @@ public class SimpleServerTransContext {
     /**
      * 请求标识
      */
-    private int requestId;
+    private int requestId = 0;
     /**
      * 请求：0  响应：1
      */
@@ -47,6 +49,7 @@ public class SimpleServerTransContext {
 
     public static SimpleServerTransContext createRequestSST(int processCode, CustomHeader customHeader) {
         SimpleServerTransContext sst = new SimpleServerTransContext();
+        sst.requestId = requestIdWorker.getAndIncrement();
         sst.setProcessCode(processCode);
         sst.customHeader = customHeader;
         return sst;

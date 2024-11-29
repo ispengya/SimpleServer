@@ -1,7 +1,7 @@
 package com.ispengya.server.procotol;
 
 import com.ispengya.server.CustomHeader;
-import com.ispengya.server.common.exception.SimpleServerEncoderException;
+import com.ispengya.server.common.util.SimpleServerUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
@@ -33,7 +33,7 @@ public class SimpleServerEncoder extends MessageToByteEncoder<SimpleServerTransC
         try {
             encode(sst, byteBuf);
         } catch (Exception e) {
-            throw new SimpleServerEncoderException(e.getMessage());
+            log.error("encode exception, " + SimpleServerUtil.parseChannelRemoteAddr(chc.channel()), e);
         }
     }
 
