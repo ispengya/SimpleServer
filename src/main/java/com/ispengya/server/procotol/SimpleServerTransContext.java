@@ -15,7 +15,7 @@ public class SimpleServerTransContext {
     /**
      * 状态
      */
-    private int statusCode;
+    private int statusCode = SimpleServerAllConstants.SUCCESS;
     /**
      * 处理器对应code
      */
@@ -45,9 +45,15 @@ public class SimpleServerTransContext {
      */
     private transient CustomHeader customHeader;
 
+    public static SimpleServerTransContext createRequestSST(int processCode, CustomHeader customHeader) {
+        SimpleServerTransContext sst = new SimpleServerTransContext();
+        sst.setProcessCode(processCode);
+        sst.customHeader = customHeader;
+        return sst;
+    }
 
     public static SimpleServerTransContext createResponseSST(int statusCode) {
-        return createResponseSST(statusCode);
+        return createResponseSST(statusCode, null);
     }
 
     public static SimpleServerTransContext createResponseSST(int code, Class<? extends CustomHeader> classHeader) {

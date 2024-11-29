@@ -1,18 +1,21 @@
 package com.ispengya.server.netty;
 
-import com.ispengya.server.ChannelEventListener;
+import com.ispengya.server.InvokeCallback;
 import com.ispengya.server.SimpleServerProcessor;
-import com.ispengya.server.SimpleServerService;
+import com.ispengya.server.SimpleService;
 import com.ispengya.server.common.constant.SimpleServerAllConstants;
 import com.ispengya.server.common.exception.SimpleServerException;
 import com.ispengya.server.common.util.Pair;
 import com.ispengya.server.common.util.SimpleServerUtil;
 import com.ispengya.server.procotol.SimpleServerTransContext;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketAddress;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -24,11 +27,11 @@ import static com.ispengya.server.common.constant.SimpleServerAllConstants.RESPO
  * @author: hanzhipeng
  * @create: 2024-11-28 21:40
  **/
-public abstract class SimpleServerAbstract implements SimpleServerService {
+public abstract class SimpleAbstract implements SimpleService {
     /**
      * log
      */
-    private static final Logger log = LoggerFactory.getLogger(SimpleServerAbstract.class);
+    private static final Logger log = LoggerFactory.getLogger(SimpleAbstract.class);
 
     /**
      * Semaphore to limit maximum number of on-going one-way requests, which protects system memory footprint.
@@ -55,7 +58,7 @@ public abstract class SimpleServerAbstract implements SimpleServerService {
 
 
 
-    public SimpleServerAbstract(Semaphore semaphoreOneway, Semaphore semaphoreAsync) {
+    public SimpleAbstract(Semaphore semaphoreOneway, Semaphore semaphoreAsync) {
         this.semaphoreOneway = semaphoreOneway;
         this.semaphoreAsync = semaphoreAsync;
     }
@@ -209,7 +212,132 @@ public abstract class SimpleServerAbstract implements SimpleServerService {
         }
     }
 
-    private void requestFail(final int requestId) {
+    public SimpleServerTransContext invokeSyncImpl(final Channel channel, final SimpleServerTransContext request,
+                                                   final long timeoutMillis)
+            throws Exception {
+        final int requestId = request.getRequestId();
+
+        try {
+            final ResponseFuture responseFuture = new ResponseFuture(channel, requestId, timeoutMillis, null, null);
+            this.responseTable.put(requestId, responseFuture);
+            final SocketAddress addr = channel.remoteAddress();
+            channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture f) throws Exception {
+                    if (f.isSuccess()) {
+                        responseFuture.setSendRequestOK(true);
+                        return;
+                    } else {
+                        responseFuture.setSendRequestOK(false);
+                    }
+
+                    responseTable.remove(requestId);
+                    responseFuture.setCause(f.cause());
+                    responseFuture.putResponse(null);
+                    log.warn("send a request command to channel <" + addr + "> failed.");
+                }
+            });
+
+            SimpleServerTransContext sst = responseFuture.waitResponse(timeoutMillis);
+            if (null == sst) {
+                if (!responseFuture.isSendRequestOK()) {
+                    throw new SimpleServerException(SimpleServerUtil.parseSocketAddressAddr(addr));
+                }
+            }
+
+            return sst;
+        } finally {
+            this.responseTable.remove(requestId);
+        }
+    }
+
+    public void invokeAsyncImpl(final Channel channel, final SimpleServerTransContext request, final long timeoutMillis,
+                                final InvokeCallback invokeCallback)
+            throws Exception {
+        long beginStartTime = System.currentTimeMillis();
+        final int requestId = request.getRequestId();
+        boolean acquired = this.semaphoreAsync.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
+        if (acquired) {
+            final Semaphore semaphore = this.semaphoreAsync;
+            long costTime = System.currentTimeMillis() - beginStartTime;
+            final ResponseFuture responseFuture = new ResponseFuture(channel, requestId, timeoutMillis - costTime, invokeCallback, semaphore);
+            if (timeoutMillis < costTime) {
+                responseFuture.release();
+                throw new SimpleServerException("invokeAsyncImpl call timeout");
+            }
+
+            this.responseTable.put(requestId, responseFuture);
+            try {
+                channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture f) throws Exception {
+                        if (f.isSuccess()) {
+                            responseFuture.setSendRequestOK(true);
+                            return;
+                        }
+                        requestFail(requestId);
+                        log.warn("send a request command to channel <{}> failed.", SimpleServerUtil.parseChannelRemoteAddr(channel));
+                    }
+                });
+            } catch (Exception e) {
+                responseFuture.release();
+                log.warn("send a request command to channel <" + SimpleServerUtil.parseChannelRemoteAddr(channel) + "> Exception", e);
+                throw new SimpleServerException(SimpleServerUtil.parseChannelRemoteAddr(channel), e);
+            }
+        } else {
+            if (timeoutMillis <= 0) {
+                throw new SimpleServerException("invokeAsyncImpl invoke too fast");
+            } else {
+                String info =
+                        String.format("invokeAsyncImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreAsyncValue: %d",
+                                timeoutMillis,
+                                this.semaphoreAsync.getQueueLength(),
+                                this.semaphoreAsync.availablePermits()
+                        );
+                log.warn(info);
+                throw new SimpleServerException(info);
+            }
+        }
+    }
+
+    public void invokeOnewayImpl(final Channel channel, final SimpleServerTransContext request, final long timeoutMillis)
+            throws Exception {
+        request.setOneWay(true);
+        boolean acquired = this.semaphoreOneway.tryAcquire(timeoutMillis, TimeUnit.MILLISECONDS);
+        if (acquired) {
+            final Semaphore semaphore = this.semaphoreOneway;
+            try {
+                channel.writeAndFlush(request).addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture f) throws Exception {
+                        semaphore.release();
+                        if (!f.isSuccess()) {
+                            log.warn("send a request command to channel <" + channel.remoteAddress() + "> failed.");
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                semaphore.release();
+                log.warn("write send a request command to channel <" + channel.remoteAddress() + "> failed.");
+                throw new SimpleServerException(SimpleServerUtil.parseChannelRemoteAddr(channel), e);
+            }
+        } else {
+            if (timeoutMillis <= 0) {
+                throw new SimpleServerException("invokeOnewayImpl invoke too fast");
+            } else {
+                String info = String.format(
+                        "invokeOnewayImpl tryAcquire semaphore timeout, %dms, waiting thread nums: %d semaphoreAsyncValue: %d",
+                        timeoutMillis,
+                        this.semaphoreOneway.getQueueLength(),
+                        this.semaphoreOneway.availablePermits()
+                );
+                log.warn(info);
+                throw new SimpleServerException(info);
+            }
+        }
+    }
+
+    public void requestFail(final int requestId) {
         ResponseFuture responseFuture = responseTable.remove(requestId);
         if (responseFuture != null) {
             responseFuture.setSendRequestOK(false);

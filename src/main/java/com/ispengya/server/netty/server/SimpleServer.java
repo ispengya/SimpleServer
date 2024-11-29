@@ -1,21 +1,20 @@
 package com.ispengya.server.netty.server;
 
 import com.ispengya.server.ChannelEventListener;
+import com.ispengya.server.InvokeCallback;
 import com.ispengya.server.SimpleServerProcessor;
 import com.ispengya.server.SimpleServerService;
 import com.ispengya.server.common.exception.SimpleServerException;
 import com.ispengya.server.common.util.Pair;
 import com.ispengya.server.netty.Event;
 import com.ispengya.server.netty.EventExecutor;
-import com.ispengya.server.netty.SimpleServerAbstract;
+import com.ispengya.server.netty.SimpleAbstract;
 import com.ispengya.server.procotol.SimpleServerDecoder;
 import com.ispengya.server.procotol.SimpleServerEncoder;
+import com.ispengya.server.procotol.SimpleServerTransContext;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -38,7 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author: hanzhipeng
  * @create: 2024-11-28 21:26
  **/
-public class SimpleServer extends SimpleServerAbstract {
+public class SimpleServer extends SimpleAbstract implements SimpleServerService {
 
     private static final Logger log = LoggerFactory.getLogger(SimpleServer.class);
 
@@ -224,8 +223,25 @@ public class SimpleServer extends SimpleServerAbstract {
         }
     }
 
+
+
     @Override
     public ExecutorService getCallbackExecutor() {
         return publicExecutor;
+    }
+
+    @Override
+    public SimpleServerTransContext invokeSync(Channel channel, SimpleServerTransContext request, long timeoutMillis) throws Exception {
+        return this.invokeSyncImpl(channel, request, timeoutMillis);
+    }
+
+    @Override
+    public void invokeAsync(Channel channel, SimpleServerTransContext request, long timeoutMillis, InvokeCallback invokeCallback) throws Exception {
+        this.invokeAsyncImpl(channel, request, timeoutMillis, invokeCallback);
+    }
+
+    @Override
+    public void invokeOneway(Channel channel, SimpleServerTransContext request, long timeoutMillis) throws Exception {
+        this.invokeOnewayImpl(channel, request, timeoutMillis);
     }
 }

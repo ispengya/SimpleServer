@@ -1,19 +1,17 @@
 package com.ispengya.server.netty.client;
 
-import com.ispengya.server.ChannelEventListener;
-import com.ispengya.server.SimpleServerProcessor;
-import com.ispengya.server.SimpleServerService;
+import com.ispengya.server.*;
 import com.ispengya.server.common.exception.SimpleServerException;
 import com.ispengya.server.common.util.ChannelWrapper;
 import com.ispengya.server.common.util.Pair;
 import com.ispengya.server.common.util.SimpleServerUtil;
 import com.ispengya.server.netty.Event;
 import com.ispengya.server.netty.EventExecutor;
-import com.ispengya.server.netty.SimpleServerAbstract;
-import com.ispengya.server.netty.server.SimpleServerConnectManageHandler;
-import com.ispengya.server.netty.server.SimpleServerHandler;
+import com.ispengya.server.netty.ResponseFuture;
+import com.ispengya.server.netty.SimpleAbstract;
 import com.ispengya.server.procotol.SimpleServerDecoder;
 import com.ispengya.server.procotol.SimpleServerEncoder;
+import com.ispengya.server.procotol.SimpleServerTransContext;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -24,6 +22,7 @@ import io.netty.util.concurrent.DefaultEventExecutorGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.SocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.Timer;
@@ -39,7 +38,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author: hanzhipeng
  * @create: 2024-11-29 14:50
  **/
-public class SimpleClient extends SimpleServerAbstract implements SimpleServerService {
+public class SimpleClient extends SimpleAbstract implements SimpleClientService {
 
     private static final Logger log = LoggerFactory.getLogger(SimpleClient.class);
 
@@ -50,10 +49,6 @@ public class SimpleClient extends SimpleServerAbstract implements SimpleServerSe
 
     private static final long LOCK_TIMEOUT_MILLIS = 3000;
     private final Lock lockChannelTables = new ReentrantLock();
-    private final AtomicReference<List<String>> namesrvAddrList = new AtomicReference<List<String>>();
-    private final AtomicReference<String> namesrvAddrChoosed = new AtomicReference<String>();
-    private final AtomicInteger namesrvIndex = new AtomicInteger(0);
-    private final Lock lockNamesrvChannel = new ReentrantLock();
 
     private final ExecutorService publicExecutor;
 
@@ -215,6 +210,88 @@ public class SimpleClient extends SimpleServerAbstract implements SimpleServerSe
         }
     }
 
+    @Override
+    public SimpleServerTransContext invokeSync(String addr, SimpleServerTransContext request, long timeoutMillis) throws Exception {
+        long beginStartTime = System.currentTimeMillis();
+        //connect server
+        final Channel channel = this.getAndCreateChannel(addr);
+        if (channel != null && channel.isActive()) {
+            try {
+                long costTime = System.currentTimeMillis() - beginStartTime;
+                if (timeoutMillis < costTime) {
+                    throw new SimpleServerException("invokeSync call timeout");
+                }
+                SimpleServerTransContext response = this.invokeSyncImpl(channel, request, timeoutMillis - costTime);
+                return response;
+            } catch (SimpleServerException e) {
+                log.warn("invokeSync: send request exception, so close the channel[{}]", addr);
+                this.closeChannel(addr, channel);
+                throw e;
+            }
+        } else {
+            this.closeChannel(addr, channel);
+            throw new SimpleServerException(addr);
+        }
+    }
+
+    @Override
+    public void invokeAsync(String addr, SimpleServerTransContext request, long timeoutMillis, InvokeCallback invokeCallback) throws Exception {
+        long beginStartTime = System.currentTimeMillis();
+        final Channel channel = this.getAndCreateChannel(addr);
+        if (channel != null && channel.isActive()) {
+            try {
+                long costTime = System.currentTimeMillis() - beginStartTime;
+                if (timeoutMillis < costTime) {
+                    throw new SimpleServerException("invokeAsync call timeout");
+                }
+                this.invokeAsyncImpl(channel, request, timeoutMillis - costTime, invokeCallback);
+            } catch (SimpleServerException e) {
+                log.warn("invokeAsync: send request exception, so close the channel[{}]", addr);
+                this.closeChannel(addr, channel);
+                throw e;
+            }
+        } else {
+            this.closeChannel(addr, channel);
+            throw new SimpleServerException(addr);
+        }
+    }
+
+    @Override
+    public void invokeOneway(String addr, SimpleServerTransContext request, long timeoutMillis) throws Exception {
+        final Channel channel = this.getAndCreateChannel(addr);
+        if (channel != null && channel.isActive()) {
+            try {
+                this.invokeOnewayImpl(channel, request, timeoutMillis);
+            } catch (SimpleServerException e) {
+                log.warn("invokeOneway: send request exception, so close the channel[{}]", addr);
+                this.closeChannel(addr, channel);
+                throw e;
+            }
+        } else {
+            this.closeChannel(addr, channel);
+            throw new SimpleServerException(addr);
+        }
+    }
+
+    @Override
+    public Channel customGetAndCreateChannel() throws Exception {
+        return this.createChannel("127.0.0.1:8888");
+    }
+
+
+    private Channel getAndCreateChannel(final String addr) throws Exception {
+        if (null == addr) {
+            return customGetAndCreateChannel();
+        }
+
+        ChannelWrapper cw = this.channelTables.get(addr);
+        if (cw != null && cw.isOK()) {
+            return cw.getChannel();
+        }
+
+        return this.createChannel(addr);
+    }
+
     private Channel createChannel(final String addr) throws InterruptedException {
         ChannelWrapper cw = this.channelTables.get(addr);
         if (cw != null && cw.isOK()) {
@@ -275,6 +352,48 @@ public class SimpleClient extends SimpleServerAbstract implements SimpleServerSe
         return null;
     }
 
+    public void closeChannel(final String addr, final Channel channel) {
+        if (null == channel)
+            return;
+
+        final String addrRemote = null == addr ? SimpleServerUtil.parseChannelRemoteAddr(channel) : addr;
+
+        try {
+            if (this.lockChannelTables.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+                try {
+                    boolean removeItemFromTable = true;
+                    final ChannelWrapper prevCW = this.channelTables.get(addrRemote);
+
+                    log.info("closeChannel: begin close the channel[{}] Found: {}", addrRemote, prevCW != null);
+
+                    if (null == prevCW) {
+                        log.info("closeChannel: the channel[{}] has been removed from the channel table before", addrRemote);
+                        removeItemFromTable = false;
+                    } else if (prevCW.getChannel() != channel) {
+                        log.info("closeChannel: the channel[{}] has been closed before, and has been created again, nothing to do.",
+                                addrRemote);
+                        removeItemFromTable = false;
+                    }
+
+                    if (removeItemFromTable) {
+                        this.channelTables.remove(addrRemote);
+                        log.info("closeChannel: the channel[{}] was removed from channel table", addrRemote);
+                    }
+
+                    SimpleServerUtil.closeChannel(channel);
+                } catch (Exception e) {
+                    log.error("closeChannel: close the channel exception", e);
+                } finally {
+                    this.lockChannelTables.unlock();
+                }
+            } else {
+                log.warn("closeChannel: try to lock channel table, but timeout, {}ms", LOCK_TIMEOUT_MILLIS);
+            }
+        } catch (InterruptedException e) {
+            log.error("closeChannel exception", e);
+        }
+    }
+
     public void closeChannel(final Channel channel) {
         if (null == channel)
             return;
@@ -319,6 +438,4 @@ public class SimpleClient extends SimpleServerAbstract implements SimpleServerSe
             log.error("closeChannel exception", e);
         }
     }
-
-
 }

@@ -23,21 +23,21 @@ public class SimpleServerConnectManageHandler extends ChannelDuplexHandler {
         @Override
         public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
             final String remoteAddress = SimpleServerUtil.parseChannelRemoteAddr(ctx.channel());
-            log.info("Simple server pipeline: channelRegistered {}", remoteAddress);
+            log.info("SimpleServer server pipeline: channelRegistered {}", remoteAddress);
             super.channelRegistered(ctx);
         }
 
         @Override
         public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
             final String remoteAddress = SimpleServerUtil.parseChannelRemoteAddr(ctx.channel());
-            log.info("Simple server pipeline: channelUnregistered, the channel[{}]", remoteAddress);
+            log.info("SimpleServer server pipeline: channelUnregistered, the channel[{}]", remoteAddress);
             super.channelUnregistered(ctx);
         }
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             final String remoteAddress = SimpleServerUtil.parseChannelRemoteAddr(ctx.channel());
-            log.info("Simple server pipeline: channelActive, the channel[{}]", remoteAddress);
+            log.info("SimpleServer server pipeline: channelActive, the channel[{}]", remoteAddress);
             super.channelActive(ctx);
             if (server.getChannelEventListener() != null) {
                 server.putEvent(new Event(SimpleServerAllConstants.CONNECT, remoteAddress, ctx.channel()));
@@ -47,7 +47,7 @@ public class SimpleServerConnectManageHandler extends ChannelDuplexHandler {
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
             final String remoteAddress = SimpleServerUtil.parseChannelRemoteAddr(ctx.channel());
-            log.info("Simple server pipeline: channelInactive, the channel[{}]", remoteAddress);
+            log.info("SimpleServer server pipeline: channelInactive, the channel[{}]", remoteAddress);
             super.channelInactive(ctx);
 
             if (server.getChannelEventListener() != null) {
@@ -61,7 +61,7 @@ public class SimpleServerConnectManageHandler extends ChannelDuplexHandler {
                 IdleStateEvent event = (IdleStateEvent) evt;
                 if (event.state().equals(IdleState.ALL_IDLE)) {
                     final String remoteAddress = SimpleServerUtil.parseChannelRemoteAddr(ctx.channel());
-                    log.warn("Simple server pipeline: idle exception [{}]", remoteAddress);
+                    log.warn("SimpleServer server pipeline: idle exception [{}]", remoteAddress);
                     SimpleServerUtil.closeChannel(ctx.channel());
                     if (server.getChannelEventListener() != null) {
                         server.putEvent(new Event(SimpleServerAllConstants.IDLE, remoteAddress, ctx.channel()));
@@ -75,8 +75,8 @@ public class SimpleServerConnectManageHandler extends ChannelDuplexHandler {
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             final String remoteAddress = SimpleServerUtil.parseChannelRemoteAddr(ctx.channel());
-            log.warn("Simple server pipeline: exceptionCaught {}", remoteAddress);
-            log.warn("Simple server pipeline: exceptionCaught exception.", cause);
+            log.warn("SimpleServer server pipeline: exceptionCaught {}", remoteAddress);
+            log.warn("SimpleServer server pipeline: exceptionCaught exception.", cause);
 
             if (server.getChannelEventListener() != null) {
                 server.putEvent(new Event(SimpleServerAllConstants.EXCEPTION, remoteAddress, ctx.channel()));
