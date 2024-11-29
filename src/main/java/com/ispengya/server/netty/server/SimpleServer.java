@@ -103,7 +103,7 @@ public class SimpleServer extends SimpleAbstract implements SimpleServerService 
 
             @Override
             public Thread newThread(Runnable r) {
-                return new Thread(r, String.format("NettyServerWorkerThread_%d" + this.threadIndex.incrementAndGet()));
+                return new Thread(r, String.format("NettyServerWorkerThread_%d", this.threadIndex.incrementAndGet()));
             }
         });
     }
@@ -111,12 +111,6 @@ public class SimpleServer extends SimpleAbstract implements SimpleServerService 
 
     @Override
     public void start() throws SimpleServerException {
-        SimpleServerEncoder encoder = new SimpleServerEncoder();
-        SimpleServerDecoder decoder = new SimpleServerDecoder();
-        IdleStateHandler idleStateHandler = new IdleStateHandler(0, 0, serverConfig.getServerChannelMaxIdleTimeSeconds());
-        SimpleServerConnectManageHandler connectManageHandler = new SimpleServerConnectManageHandler(this);
-        SimpleServerHandler simpleServerHandler = new SimpleServerHandler(this);
-
         ServerBootstrap server =
                 this.serverBootstrap.group(this.eventLoopGroupBoss, this.eventLoopGroupSelector)
                         .channel(NioServerSocketChannel.class)
@@ -132,11 +126,11 @@ public class SimpleServer extends SimpleAbstract implements SimpleServerService 
                             public void initChannel(SocketChannel ch) throws Exception {
                                 ch.pipeline()
                                         .addLast(defaultEventExecutorGroup,
-                                                encoder,
-                                                decoder,
-                                                idleStateHandler,
-                                                connectManageHandler,
-                                                simpleServerHandler
+                                                new SimpleServerEncoder(),
+                                                new SimpleServerDecoder(),
+                                                new IdleStateHandler(0, 0, serverConfig.getServerChannelMaxIdleTimeSeconds()),
+                                                new SimpleServerConnectManageHandler(SimpleServer.this),
+                                                new SimpleServerHandler(SimpleServer.this)
                                         );
                             }
                         });

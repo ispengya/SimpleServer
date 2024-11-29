@@ -1,13 +1,10 @@
-package com.ispengya.server;
+package com.ispengya.server.common.test;
 
 
-import org.jetbrains.annotations.Nullable;
+import com.ispengya.server.CustomHeader;
 
 class RequestHeader implements CustomHeader {
-        @Nullable
         private Integer count;
-
-        @Nullable
         private String messageTitle;
 
 

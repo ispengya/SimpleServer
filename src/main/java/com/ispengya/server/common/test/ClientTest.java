@@ -1,16 +1,10 @@
-package com.ispengya.server;
+package com.ispengya.server.common.test;
 
-import com.ispengya.server.common.exception.RemotingCommandException;
+
 import com.ispengya.server.common.exception.SimpleServerException;
-import com.ispengya.server.netty.NettyClientConfig;
-import com.ispengya.server.netty.NettyRemotingClient;
 import com.ispengya.server.netty.client.ClientConfig;
 import com.ispengya.server.netty.client.SimpleClient;
-import com.ispengya.server.procotol.RemotingCommand;
 import com.ispengya.server.procotol.SimpleServerTransContext;
-import com.sun.istack.internal.Nullable;
-
-
 
 /**
  * @description:
@@ -34,7 +28,8 @@ public class ClientTest {
         requestHeader.setCount(1);
         requestHeader.setMessageTitle("Welcome");
         SimpleServerTransContext request = SimpleServerTransContext.createRequestSST(0, requestHeader);
-        SimpleServerTransContext response = client.invokeSync("localhost:9876", request, 1000 * 3);
+        SimpleServerTransContext response = client.invokeSync("localhost:6666", request, 1000 * 30);
+        client.stop();
     }
 
 }

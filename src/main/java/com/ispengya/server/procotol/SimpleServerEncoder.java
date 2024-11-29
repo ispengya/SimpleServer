@@ -91,6 +91,7 @@ public class SimpleServerEncoder extends MessageToByteEncoder<SimpleServerTransC
                     }
                 }
             }
+            sst.setCustomFields(customFields);
         }
         return SimpleServerSerializable.encode(sst);
     }

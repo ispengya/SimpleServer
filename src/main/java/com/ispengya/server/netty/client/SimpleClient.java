@@ -138,17 +138,17 @@ public class SimpleClient extends SimpleAbstract implements SimpleClientService 
             this.eventExecutor.start();
         }
 
-        this.timer.scheduleAtFixedRate(new TimerTask() {
-
-            @Override
-            public void run() {
-                try {
-                    scanResponseTable();
-                } catch (Throwable e) {
-                    log.error("scanResponseTable exception", e);
-                }
-            }
-        }, 1000 * 3, 1000);
+//        this.timer.scheduleAtFixedRate(new TimerTask() {
+//
+//            @Override
+//            public void run() {
+//                try {
+//                    scanResponseTable();
+//                } catch (Throwable e) {
+//                    log.error("scanResponseTable exception", e);
+//                }
+//            }
+//        }, 1000 * 3, 1000);
     }
 
     @Override

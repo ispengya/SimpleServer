@@ -1,5 +1,6 @@
-package com.ispengya.server;
+package com.ispengya.server.common.test;
 
+import com.ispengya.server.SimpleServerProcessor;
 import com.ispengya.server.common.exception.SimpleServerException;
 import com.ispengya.server.netty.server.ServerConfig;
 import com.ispengya.server.netty.server.SimpleServer;
@@ -21,7 +22,7 @@ public class ServerTest {
         server.registerProcessor(0, new SimpleServerProcessor() {
             @Override
             public SimpleServerTransContext processRequest(ChannelHandlerContext ctx, SimpleServerTransContext request) {
-                request.setRequestId(666);
+                request.setProcessCode(11111);
                 return request;
             }
 
