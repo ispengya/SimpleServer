@@ -8,11 +8,14 @@ import com.ispengya.server.common.exception.SimpleServerException;
 import com.ispengya.server.common.util.Pair;
 import com.ispengya.server.common.util.SimpleServerUtil;
 import com.ispengya.server.procotol.SimpleServerTransContext;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.*;
 
 import static com.ispengya.server.common.constant.SimpleServerAllConstants.REQUEST_FLAG;
@@ -204,6 +207,38 @@ public abstract class SimpleServerAbstract implements SimpleServerService {
                 log.warn("executeInvokeCallback Exception", e);
             } finally {
                 responseFuture.release();
+            }
+        }
+    }
+
+    private void requestFail(final int requestId) {
+        ResponseFuture responseFuture = responseTable.remove(requestId);
+        if (responseFuture != null) {
+            responseFuture.setSendRequestOK(false);
+            responseFuture.putResponse(null);
+            try {
+                executeInvokeCallback(responseFuture);
+            } catch (Throwable e) {
+                log.warn("execute callback in requestFail, and callback throw", e);
+            } finally {
+                responseFuture.release();
+            }
+        }
+    }
+
+    /**
+     * mark the request of the specified channel as fail and to invoke fail callback immediately
+     * @param channel the channel which is close already
+     */
+    public void failFast(final Channel channel) {
+        Iterator<Map.Entry<Integer, ResponseFuture>> it = responseTable.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Integer, ResponseFuture> entry = it.next();
+            if (entry.getValue().getProcessChannel() == channel) {
+                Integer requestId = entry.getKey();
+                if (requestId != null) {
+                    requestFail(requestId);
+                }
             }
         }
     }

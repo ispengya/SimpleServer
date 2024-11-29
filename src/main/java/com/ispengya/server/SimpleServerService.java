@@ -12,4 +12,5 @@ public interface SimpleServerService {
     void processMessage(ChannelHandlerContext ctx, SimpleServerTransContext transContext) throws SimpleServerException;
     void registerProcessor(int requestCode, SimpleServerProcessor processor, ExecutorService executor);
     void putEvent(Event event);
+    ChannelEventListener getChannelEventListener();
 }
