@@ -112,7 +112,7 @@ public class SimpleClient extends SimpleServerAbstract implements SimpleServerSe
     }
 
     @Override
-    public void startServer() throws SimpleServerException {
+    public void start() throws SimpleServerException {
         SimpleServerEncoder encoder = new SimpleServerEncoder();
         SimpleServerDecoder decoder = new SimpleServerDecoder();
         IdleStateHandler idleStateHandler = new IdleStateHandler(0, 0, clientConfig.getClientChannelMaxIdleTimeSeconds());
@@ -142,6 +142,18 @@ public class SimpleClient extends SimpleServerAbstract implements SimpleServerSe
         if (this.channelEventListener != null) {
             this.eventExecutor.start();
         }
+
+        this.timer.scheduleAtFixedRate(new TimerTask() {
+
+            @Override
+            public void run() {
+                try {
+                    scanResponseTable();
+                } catch (Throwable e) {
+                    log.error("scanResponseTable exception", e);
+                }
+            }
+        }, 1000 * 3, 1000);
     }
 
     @Override
@@ -168,6 +180,99 @@ public class SimpleClient extends SimpleServerAbstract implements SimpleServerSe
     @Override
     public ChannelEventListener getChannelEventListener() {
         return this.channelEventListener;
+    }
+
+    @Override
+    public void stop() throws SimpleServerException {
+        try {
+            this.timer.cancel();
+
+            for (ChannelWrapper cw : this.channelTables.values()) {
+                this.closeChannel(cw.getChannel());
+            }
+
+            this.channelTables.clear();
+
+            this.eventLoopGroupWorker.shutdownGracefully();
+
+            if (this.eventExecutor != null) {
+                this.eventExecutor.shutdown();
+            }
+
+            if (this.defaultEventExecutorGroup != null) {
+                this.defaultEventExecutorGroup.shutdownGracefully();
+            }
+        } catch (Exception e) {
+            log.error("SimpleClient shutdown exception, ", e);
+        }
+
+        if (this.publicExecutor != null) {
+            try {
+                this.publicExecutor.shutdown();
+            } catch (Exception e) {
+                log.error("SimpleClient shutdown exception, ", e);
+            }
+        }
+    }
+
+    private Channel createChannel(final String addr) throws InterruptedException {
+        ChannelWrapper cw = this.channelTables.get(addr);
+        if (cw != null && cw.isOK()) {
+            cw.getChannel().close();
+            channelTables.remove(addr);
+        }
+
+        if (this.lockChannelTables.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+            try {
+                boolean createNewConnection;
+                cw = this.channelTables.get(addr);
+                if (cw != null) {
+
+                    if (cw.isOK()) {
+                        cw.getChannel().close();
+                        this.channelTables.remove(addr);
+                        createNewConnection = true;
+                    } else if (!cw.getChannelFuture().isDone()) {
+                        createNewConnection = false;
+                    } else {
+                        this.channelTables.remove(addr);
+                        createNewConnection = true;
+                    }
+                } else {
+                    createNewConnection = true;
+                }
+
+                if (createNewConnection) {
+                    ChannelFuture channelFuture = this.bootstrap.connect(SimpleServerUtil.string2SocketAddress(addr));
+                    log.info("createChannel: begin to connect remote host[{}] asynchronously", addr);
+                    cw = new ChannelWrapper(channelFuture);
+                    this.channelTables.put(addr, cw);
+                }
+            } catch (Exception e) {
+                log.error("createChannel: create channel exception", e);
+            } finally {
+                this.lockChannelTables.unlock();
+            }
+        } else {
+            log.warn("createChannel: try to lock channel table, but timeout, {}ms", LOCK_TIMEOUT_MILLIS);
+        }
+
+        if (cw != null) {
+            ChannelFuture channelFuture = cw.getChannelFuture();
+            if (channelFuture.awaitUninterruptibly(this.clientConfig.getConnectTimeoutMillis())) {
+                if (cw.isOK()) {
+                    log.info("createChannel: connect remote host[{}] success, {}", addr, channelFuture.toString());
+                    return cw.getChannel();
+                } else {
+                    log.warn("createChannel: connect remote host[" + addr + "] failed, " + channelFuture.toString(), channelFuture.cause());
+                }
+            } else {
+                log.warn("createChannel: connect remote host[{}] timeout {}ms, {}", addr, this.clientConfig.getConnectTimeoutMillis(),
+                        channelFuture.toString());
+            }
+        }
+
+        return null;
     }
 
     public void closeChannel(final Channel channel) {

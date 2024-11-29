@@ -8,9 +8,10 @@ import io.netty.channel.ChannelHandlerContext;
 import java.util.concurrent.ExecutorService;
 
 public interface SimpleServerService {
-    void startServer() throws SimpleServerException;
+    void start() throws SimpleServerException;
     void processMessage(ChannelHandlerContext ctx, SimpleServerTransContext transContext) throws SimpleServerException;
     void registerProcessor(int requestCode, SimpleServerProcessor processor, ExecutorService executor);
     void putEvent(Event event);
     ChannelEventListener getChannelEventListener();
+    void stop() throws SimpleServerException;
 }

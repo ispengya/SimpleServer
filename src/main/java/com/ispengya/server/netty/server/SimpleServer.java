@@ -25,6 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -52,6 +54,7 @@ public class SimpleServer extends SimpleServerAbstract {
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
     private final ExecutorService publicExecutor;
     protected final EventExecutor eventExecutor;
+    private final Timer timer = new Timer("ServerHouseKeepingService", true);
 
     public SimpleServer(ServerConfig serverConfig) {
         this(serverConfig, null);
@@ -108,7 +111,7 @@ public class SimpleServer extends SimpleServerAbstract {
 
 
     @Override
-    public void startServer() throws SimpleServerException {
+    public void start() throws SimpleServerException {
         SimpleServerEncoder encoder = new SimpleServerEncoder();
         SimpleServerDecoder decoder = new SimpleServerDecoder();
         IdleStateHandler idleStateHandler = new IdleStateHandler(0, 0, serverConfig.getServerChannelMaxIdleTimeSeconds());
@@ -155,6 +158,18 @@ public class SimpleServer extends SimpleServerAbstract {
             this.eventExecutor.start();
         }
 
+        this.timer.scheduleAtFixedRate(new TimerTask() {
+
+            @Override
+            public void run() {
+                try {
+                    scanResponseTable();
+                } catch (Throwable e) {
+                    log.error("scanResponseTable exception", e);
+                }
+            }
+        }, 1000 * 3, 1000);
+
         log.info("!!!!!!!!!!!!!!!!SimpleServer started success on port {}!!!!!!!!!!!!!!!!", this.port);
     }
 
@@ -176,6 +191,37 @@ public class SimpleServer extends SimpleServerAbstract {
 
     public ChannelEventListener getChannelEventListener() {
         return channelEventListener;
+    }
+
+    @Override
+    public void stop() throws SimpleServerException {
+        try {
+            if (this.timer != null) {
+                this.timer.cancel();
+            }
+
+            this.eventLoopGroupBoss.shutdownGracefully();
+
+            this.eventLoopGroupSelector.shutdownGracefully();
+
+            if (this.eventExecutor != null) {
+                this.eventExecutor.shutdown();
+            }
+
+            if (this.defaultEventExecutorGroup != null) {
+                this.defaultEventExecutorGroup.shutdownGracefully();
+            }
+        } catch (Exception e) {
+            log.error("SimpleServer shutdown exception, ", e);
+        }
+
+        if (this.publicExecutor != null) {
+            try {
+                this.publicExecutor.shutdown();
+            } catch (Exception e) {
+                log.error("SimpleServer shutdown exception, ", e);
+            }
+        }
     }
 
     @Override

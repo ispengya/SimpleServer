@@ -13,9 +13,7 @@ import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 
 import static com.ispengya.server.common.constant.SimpleServerAllConstants.REQUEST_FLAG;
@@ -239,6 +237,35 @@ public abstract class SimpleServerAbstract implements SimpleServerService {
                 if (requestId != null) {
                     requestFail(requestId);
                 }
+            }
+        }
+    }
+
+    /**
+     * <p>
+     * This method is periodically invoked to scan and expire deprecated request.
+     * </p>
+     */
+    public void scanResponseTable() {
+        final List<ResponseFuture> rfList = new LinkedList<ResponseFuture>();
+        Iterator<Map.Entry<Integer, ResponseFuture>> it = this.responseTable.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Integer, ResponseFuture> next = it.next();
+            ResponseFuture rep = next.getValue();
+
+            if ((rep.getBeginTimestamp() + rep.getTimeoutMillis() + 1000) <= System.currentTimeMillis()) {
+                rep.release();
+                it.remove();
+                rfList.add(rep);
+                log.warn("remove timeout request, " + rep);
+            }
+        }
+
+        for (ResponseFuture rf : rfList) {
+            try {
+                executeInvokeCallback(rf);
+            } catch (Throwable e) {
+                log.warn("scanResponseTable, operationComplete Exception", e);
             }
         }
     }
