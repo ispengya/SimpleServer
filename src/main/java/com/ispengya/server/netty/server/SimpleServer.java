@@ -4,8 +4,10 @@ import com.ispengya.server.ChannelEventListener;
 import com.ispengya.server.SimpleServerProcessor;
 import com.ispengya.server.SimpleServerService;
 import com.ispengya.server.common.exception.SimpleServerException;
+import com.ispengya.server.common.util.Pair;
 import com.ispengya.server.netty.Event;
 import com.ispengya.server.netty.EventExecutor;
+import com.ispengya.server.netty.SimpleServerAbstract;
 import com.ispengya.server.procotol.SimpleServerDecoder;
 import com.ispengya.server.procotol.SimpleServerEncoder;
 import io.netty.bootstrap.ServerBootstrap;
@@ -25,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -33,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author: hanzhipeng
  * @create: 2024-11-28 21:26
  **/
-public class SimpleServer implements SimpleServerService {
+public class SimpleServer extends SimpleServerAbstract {
 
     private static final Logger log = LoggerFactory.getLogger(SimpleServer.class);
 
@@ -55,6 +58,7 @@ public class SimpleServer implements SimpleServerService {
     }
 
     public SimpleServer(ServerConfig serverConfig, ChannelEventListener channelEventListener) {
+        super(new Semaphore(serverConfig.getServerOnewaySemaphoreValue()), new Semaphore(serverConfig.getServerAsyncSemaphoreValue()));
         this.serverBootstrap = new ServerBootstrap();
         this.serverConfig = serverConfig;
         this.channelEventListener = channelEventListener;
@@ -155,8 +159,14 @@ public class SimpleServer implements SimpleServerService {
     }
 
     @Override
-    public void registerProcessor(SimpleServerProcessor processor) {
+    public void registerProcessor(int requestCode, SimpleServerProcessor processor, ExecutorService executor) {
+        ExecutorService executorThis = executor;
+        if (null == executor) {
+            executorThis = this.publicExecutor;
+        }
 
+        Pair<SimpleServerProcessor, ExecutorService> pair = new Pair<SimpleServerProcessor, ExecutorService>(processor, executorThis);
+        this.processorTable.put(requestCode, pair);
     }
 
     @Override
@@ -166,5 +176,10 @@ public class SimpleServer implements SimpleServerService {
 
     public ChannelEventListener getChannelEventListener() {
         return channelEventListener;
+    }
+
+    @Override
+    public ExecutorService getCallbackExecutor() {
+        return publicExecutor;
     }
 }

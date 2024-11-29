@@ -1,4 +1,4 @@
-package com.ispengya.server.common;
+package com.ispengya.server.common.constant;
 
 /**
  * @description:
@@ -17,7 +17,15 @@ public class SimpleServerAllConstants {
      */
     //处理事件类型
     public static final int CONNECT = 1000;
-    public static final int ClOSE = 1001;
+    public static final int CLOSE = 1001;
     public static final int EXCEPTION = 1002;
     public static final int IDLE = 1003;
+
+    /**
+     * statusCode
+     */
+    public static final int SUCCESS = 0;
+    public static final int SYSTEM_ERROR = 1;
+    public static final int SYSTEM_BUSY = 2;
+    public static final int REQUEST_CODE_NOT_SUPPORTED = 3;
 }

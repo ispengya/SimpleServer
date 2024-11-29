@@ -1,6 +1,10 @@
 package com.ispengya.server.common.util;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.SocketAddress;
 
@@ -10,6 +14,8 @@ import java.net.SocketAddress;
  * @create: 2024-11-28 21:24
  **/
 public class SimpleServerUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(SimpleServerUtil.class);
 
     public static String parseChannelRemoteAddr(final Channel channel) {
         if (null == channel) {
@@ -28,5 +34,16 @@ public class SimpleServerUtil {
         }
 
         return "";
+    }
+
+    public static void closeChannel(Channel channel) {
+        final String addrRemote = parseChannelRemoteAddr(channel);
+        channel.close().addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                log.info("closeChannel: close the connection to remote address[{}] result: {}", addrRemote,
+                        future.isSuccess());
+            }
+        });
     }
 }

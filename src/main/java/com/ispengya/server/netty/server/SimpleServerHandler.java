@@ -20,6 +20,6 @@ public class SimpleServerHandler extends SimpleChannelInboundHandler<SimpleServe
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, SimpleServerTransContext msg) throws Exception {
-        this.simpleServer.processMessageReceived(ctx, msg);
+        this.simpleServer.processMessage(ctx, msg);
     }
 }

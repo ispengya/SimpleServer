@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static com.ispengya.server.common.SimpleServerAllConstants.*;
+import static com.ispengya.server.common.constant.SimpleServerAllConstants.*;
 
 
 /**
@@ -80,7 +80,7 @@ public class EventExecutor implements Runnable {
                         case IDLE:
                             listener.onChannelIdle(event.getRemoteAddr(), event.getChannel());
                             break;
-                        case ClOSE:
+                        case CLOSE:
                             listener.onChannelClose(event.getRemoteAddr(), event.getChannel());
                             break;
                         case CONNECT:
