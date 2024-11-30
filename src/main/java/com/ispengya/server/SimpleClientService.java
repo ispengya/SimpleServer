@@ -12,6 +12,4 @@ public interface SimpleClientService {
     void invokeAsync(final String addr, final SimpleServerTransContext request, final long timeoutMillis,
                      final InvokeCallback invokeCallback) throws Exception;
     void invokeOneway(final String addr, final SimpleServerTransContext request, final long timeoutMillis) throws Exception;
-
-    Channel customGetAndCreateChannel() throws Exception;
 }

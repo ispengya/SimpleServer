@@ -282,17 +282,8 @@ public class SimpleClient extends SimpleAbstract implements SimpleClientService 
         }
     }
 
-    @Override
-    public Channel customGetAndCreateChannel() throws Exception {
-        return this.createChannel("127.0.0.1:8888");
-    }
-
 
     private Channel getAndCreateChannel(final String addr) throws Exception {
-        if (null == addr) {
-            return customGetAndCreateChannel();
-        }
-
         ChannelWrapper cw = this.channelTables.get(addr);
         if (cw != null && cw.isOK()) {
             return cw.getChannel();
