@@ -23,7 +23,6 @@ public class SimpleServerEncoder extends MessageToByteEncoder<SimpleServerTransC
 
     private static final Logger log = LoggerFactory.getLogger(SimpleServerEncoder.class);
 
-    private static final Map<Class<? extends CustomHeader>, Field[]> CLASS_HASH_MAP = new HashMap<Class<? extends CustomHeader>, Field[]>();
 
     /**
      * 传输格式：4字节总长度（4 + header length + body length）、4字节header长度、header数据、body
@@ -68,7 +67,7 @@ public class SimpleServerEncoder extends MessageToByteEncoder<SimpleServerTransC
     private byte[] headerEncode(SimpleServerTransContext sst) {
         CustomHeader customHeader = sst.getCustomHeader();
         if (customHeader != null) {
-            Field[] fields = getClazzFields(customHeader.getClass());
+            Field[] fields = sst.getClazzFields(customHeader.getClass());
             HashMap<String, String> customFields = sst.getCustomFields();
             if (null == customFields) {
                 customFields = new HashMap<>();
@@ -96,16 +95,7 @@ public class SimpleServerEncoder extends MessageToByteEncoder<SimpleServerTransC
         return SimpleServerSerializable.encode(sst);
     }
 
-    private Field[] getClazzFields(Class<? extends CustomHeader> classHeader) {
-        Field[] field = CLASS_HASH_MAP.get(classHeader);
-        if (field == null) {
-            field = classHeader.getDeclaredFields();
-            synchronized (CLASS_HASH_MAP) {
-                CLASS_HASH_MAP.put(classHeader, field);
-            }
-        }
-        return field;
-    }
+
 
 
 }
