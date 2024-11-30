@@ -238,4 +238,9 @@ public class SimpleServer extends SimpleAbstract implements SimpleServerService 
     public void invokeOneway(Channel channel, SimpleServerTransContext request, long timeoutMillis) throws Exception {
         this.invokeOnewayImpl(channel, request, timeoutMillis);
     }
+
+    @Override
+    public void registerDefaultProcessor(SimpleServerProcessor processor, ExecutorService executor) {
+        this.defaultRequestProcessor = new Pair<SimpleServerProcessor, ExecutorService>(processor, executor);
+    }
 }

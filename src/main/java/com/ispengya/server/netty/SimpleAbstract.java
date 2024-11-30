@@ -59,6 +59,11 @@ public abstract class SimpleAbstract implements SimpleService {
     protected final HashMap<Integer/* processCode */, Pair<SimpleServerProcessor, ExecutorService>> processorTable =
             new HashMap<Integer, Pair<SimpleServerProcessor, ExecutorService>>(64);
 
+    /**
+     * The default request processor to use in case there is no exact match in {@link #processorTable} per request code.
+     */
+    protected Pair<SimpleServerProcessor, ExecutorService> defaultRequestProcessor;
+
 
 
     public SimpleAbstract(Semaphore semaphoreOneway, Semaphore semaphoreAsync) {
@@ -86,7 +91,8 @@ public abstract class SimpleAbstract implements SimpleService {
     }
 
     private void processRequest(final ChannelHandlerContext ctx, final SimpleServerTransContext sst) {
-        final Pair<SimpleServerProcessor, ExecutorService> pair = this.processorTable.get(sst.getProcessCode());
+        final Pair<SimpleServerProcessor, ExecutorService> matched = this.processorTable.get(sst.getProcessCode());
+        final Pair<SimpleServerProcessor, ExecutorService> pair = null == matched ? this.defaultRequestProcessor : matched;
         final int requestId = sst.getRequestId();
 
         if (pair != null) {
