@@ -20,7 +20,6 @@ public class SimpleServerHandler extends SimpleChannelInboundHandler<SimpleServe
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, SimpleServerTransContext msg) throws Exception {
-        System.out.println(Thread.currentThread().getName());
         this.simpleServer.processMessage(ctx, msg);
     }
 }
