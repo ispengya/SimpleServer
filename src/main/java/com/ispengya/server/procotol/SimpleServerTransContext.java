@@ -60,6 +60,10 @@ public class SimpleServerTransContext {
      */
     private HashMap<String, String> customFields;
     /**
+     * 备注
+     */
+    private String remark;
+    /**
      * 数据
      */
     private transient byte[] body;
@@ -76,15 +80,19 @@ public class SimpleServerTransContext {
         return sst;
     }
 
-    public static SimpleServerTransContext createResponseSST(int statusCode) {
-        return createResponseSST(statusCode, null);
+    public static SimpleServerTransContext createResponseSST(Class<? extends CustomHeader> classHeader) {
+        return createResponseSST(SimpleServerAllConstants.NOT_CARE, "Don't care statusCode" ,classHeader);
     }
 
-    public static SimpleServerTransContext createResponseSST(int code, Class<? extends CustomHeader> classHeader) {
+    public static SimpleServerTransContext createResponseSST(int statusCode) {
+        return createResponseSST(statusCode,null ,null);
+    }
+
+    public static SimpleServerTransContext createResponseSST(int statusCode, String remark ,Class<? extends CustomHeader> classHeader) {
         SimpleServerTransContext sst = new SimpleServerTransContext();
         sst.setFlag(SimpleServerAllConstants.RESPONSE_FLAG);
-        sst.setStatusCode(code);
-
+        sst.setStatusCode(statusCode);
+        sst.setRemark(remark);
         if (classHeader != null) {
             try {
                 CustomHeader objectHeader = classHeader.newInstance();
@@ -96,7 +104,7 @@ public class SimpleServerTransContext {
         return sst;
     }
 
-    public CustomHeader decodeSSTCustomHeader(
+    public CustomHeader decodeCustomHeaderOfSST(
             Class<? extends CustomHeader> classHeader) throws SimpleServerException {
         CustomHeader objectHeader;
         try {
@@ -149,6 +157,10 @@ public class SimpleServerTransContext {
 
         }
         return objectHeader;
+    }
+
+    public CustomHeader readCustomHeader() {
+        return this.customHeader;
     }
 
     public Field[] getClazzFields(Class<? extends CustomHeader> classHeader) {
@@ -238,6 +250,14 @@ public class SimpleServerTransContext {
         this.statusCode = statusCode;
     }
 
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
+
     @Override
     public String toString() {
         return "SimpleServerTransContext{" +
@@ -247,6 +267,7 @@ public class SimpleServerTransContext {
                 ", flag=" + flag +
                 ", isOneWay=" + isOneWay +
                 ", customFields=" + customFields +
+                ", remark='" + remark + '\'' +
                 ", body=" + Arrays.toString(body) +
                 ", customHeader=" + customHeader +
                 '}';
